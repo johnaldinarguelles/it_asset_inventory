@@ -1,0 +1,1 @@
+<?php require_once '../config/auth.php'; require_login(); header('Content-Type: application/json'); $id=(int)($_GET['id']??0); $r=$conn->query('SELECT * FROM items WHERE id='.$id)->fetch_assoc(); echo json_encode(['ok'=>(bool)$r,'item'=>$r]);

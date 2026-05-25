@@ -1,0 +1,1 @@
+<?php require_once '../config/auth.php'; require_admin(); header('Content-Type: application/json'); $id=(int)$_POST['id']; $ok=$conn->query('DELETE FROM items WHERE id='.$id); echo json_encode(['ok'=>$ok,'message'=>$ok?'Deleted':'Cannot delete item with transactions.']);
