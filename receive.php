@@ -1,7 +1,7 @@
 <?php include 'includes/header.php'; require_admin();
 $msg=''; $err='';
 $locations = ['Rack 1','Rack 2','Rack 3','Rack 4','Rack 5','Rack 6','Rack 7','Rack 8','Cabinet 1','Cabinet 2','Storage Room'];
-$uoms = ['Unit','Pc','Pack'];
+$uoms = ['Unit', 'Pc', 'Pack', 'Bottles', 'Box', 'Pairs', 'Ream', 'Roll', 'Set'];
 
 function process_receive_row($conn, $d, $s, $loc, $u, $q, $pic) {
     $d = trim($d ?? '');
