@@ -1,5 +1,5 @@
 <?php
-$host='localhost'; $user='root'; $pass=''; $db='it_asset_db';
+$host='localhost'; $user='yas3'; $pass='Y@53mysql'; $db='it_asset_db';
 $conn = new mysqli($host,$user,$pass,$db);
 if($conn->connect_error){ die('Database connection failed: '.$conn->connect_error); }
 $conn->set_charset('utf8mb4');
