@@ -2,6 +2,19 @@
 include 'includes/header.php';
 require_admin();
 
+function cleanText($value)
+{
+    $value = trim($value);
+
+    // Convert UTF-8 non-breaking spaces
+    $value = str_replace("\xC2\xA0", " ", $value);
+
+    // Convert Windows-1252 NBSP
+    $value = str_replace(chr(160), " ", $value);
+
+    return $value;
+}
+
 $msg = '';
 $errors = [];
 
@@ -65,11 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                 }
 
                 $data = array_combine($header, $row);
-
-                $description = trim($data['item_description'] ?? '');
-                $serial      = trim($data['serial_number'] ?? '');
-                $location    = trim($data['location'] ?? '');
-                $uom         = trim($data['uom'] ?? 'Pc');
+                $description = cleanText($data['item_description'] ?? '');
+                $serial      = cleanText($data['serial_number'] ?? '');
+                $location    = cleanText($data['location'] ?? '');
+                $uom         = cleanText($data['uom'] ?? 'Pc');
 
                 $boh         = (int)($data['boh'] ?? 0);
                 $received    = (int)($data['total_received'] ?? 0);
