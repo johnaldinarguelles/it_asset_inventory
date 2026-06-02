@@ -67,3 +67,10 @@ IMPORT FIX:
 - Default login: admin / admin123
 
 UPDATE: Item Activity View is now displayed as a Bootstrap modal from the Items / Stock page instead of opening view_item.php as a separate page.
+
+
+RESPONSIVE UI UPDATE
+- Improved desktop, tablet, and mobile layout.
+- Sidebar now becomes a slide-out menu on tablet/mobile.
+- Tables now use horizontal scrolling to prevent broken layout on small screens.
+- Modals are optimized for mobile width and touch-friendly buttons.

@@ -68,7 +68,7 @@ $rows = $tx->get_result();
 </form>
 
 <div class="table-responsive">
-<table class="table table-hover table-sm w-100" id="activityModalTable">
+<table class="table table-hover table-sm" id="activityModalTable">
     <thead>
         <tr>
             <th>ID</th>
