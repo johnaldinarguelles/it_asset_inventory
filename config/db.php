@@ -1,7 +1,7 @@
 <?php
 $host = 'localhost';
-$user = 'yas3';
-$pass = 'Y@53mysql';
+$user = 'itasset_user';
+$pass = 'StrongPassword123!';
 $db = 'it_asset_db';
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) {
