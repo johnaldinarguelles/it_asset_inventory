@@ -107,12 +107,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
 
                 if ($existing) {
                     $itemId = (int)$existing['id'];
-                    $newActual = (int)$existing['actual_stock'] + $received;
                     $reorderLevel = (int)$existing['reorder_level'];
 
-                    if ($newActual <= 0) {
+                    if ($actual <= 0) {
                         $status = 'Out of Stock';
-                    } elseif ($newActual <= $reorderLevel) {
+                    } elseif ($actual <= $reorderLevel) {
                         $status = 'Low Stock';
                     } else {
                         $status = 'Available';
@@ -124,20 +123,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                             item_description = ?,
                             location = ?,
                             uom = ?,
-                            total_received = total_received + ?,
-                            actual_stock = actual_stock + ?,
+                            boh = ?,
+                            total_received = ?,
+                            actual_stock = ?,
+                            pic = ?,
+                            remarks = ?,
                             status = ?,
                             updated_at = NOW()
                         WHERE id = ?
                     ");
 
                     $stmt->bind_param(
-                        "sssiisi",
+                        "sssiissssi",
                         $description,
                         $location,
                         $uom,
+                        $boh,
                         $received,
-                        $received,
+                        $actual,
+                        $pic,
+                        $remarks,
                         $status,
                         $itemId
                     );
