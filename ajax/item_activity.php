@@ -8,7 +8,7 @@ if ($item_id <= 0) {
     exit;
 }
 
-$st = $conn->prepare('SELECT *, (boh+total_received+total_returned-total_issued) AS stock, ((boh+total_received+total_returned-total_issued)-actual_stock) AS variance FROM items WHERE id=?');
+$st = $conn->prepare('SELECT *, (boh+total_received+total_returned-total_issued-total_disposed) AS stock, ((boh+total_received+total_returned-total_issued-total_disposed)-actual_stock) AS variance FROM items WHERE id=?');
 $st->bind_param('i', $item_id);
 $st->execute();
 $item = $st->get_result()->fetch_assoc();
@@ -49,6 +49,7 @@ $rows = $tx->get_result();
     <div class="col-md-3"><div class="card cardx p-3"><small>Serial / General Code</small><b><?= e($item['serial_number']) ?></b></div></div>
     <div class="col-md-2"><div class="card cardx p-3"><small>Received</small><h5 class="mb-0"><?= (int)$item['total_received'] ?></h5></div></div>
     <div class="col-md-2"><div class="card cardx p-3"><small>Usage</small><h5 class="mb-0"><?= (int)$item['total_issued'] ?></h5></div></div>
+    <div class="col-md-2"><div class="card cardx p-3"><small>Disposed</small><h5 class="mb-0"><?= (int)$item['total_disposed'] ?></h5></div></div>
     <div class="col-md-2"><div class="card cardx p-3"><small>Stock</small><h5 class="mb-0"><?= (int)$item['stock'] ?></h5></div></div>
 </div>
 
@@ -59,7 +60,7 @@ $rows = $tx->get_result();
     <div class="col-md-3">
         <select class="form-select" name="action_type">
             <option value="">All Activities</option>
-            <?php foreach(['Received','Issued','Returned','Adjusted'] as $a): ?>
+            <?php foreach(['Received','Issued','Returned','Disposed','Adjusted'] as $a): ?>
                 <option value="<?= $a ?>" <?= ($_GET['action_type'] ?? '') === $a ? 'selected' : '' ?>><?= $a ?></option>
             <?php endforeach; ?>
         </select>

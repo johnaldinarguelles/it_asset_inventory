@@ -33,12 +33,14 @@ CREATE TABLE items (
  serial_number VARCHAR(80) NULL COMMENT 'Serialized asset serial or general item code for non-serialized stock items.',
  location VARCHAR(80) DEFAULT NULL,
  uom VARCHAR(20) DEFAULT 'Pc',
+ asset_classification ENUM('Fixed Asset','Non Fixed-Asset') NOT NULL DEFAULT 'Non Fixed-Asset',
  boh INT NOT NULL DEFAULT 0,
  total_received INT NOT NULL DEFAULT 0,
  total_issued INT NOT NULL DEFAULT 0,
  total_returned INT NOT NULL DEFAULT 0,
+ total_disposed INT NOT NULL DEFAULT 0,
  actual_stock INT NOT NULL DEFAULT 0,
- status ENUM('Available','Issued','Low Stock','Out of Stock') NOT NULL DEFAULT 'Available',
+ status ENUM('Available','Issued','Low Stock','Out of Stock','Disposed') NOT NULL DEFAULT 'Available',
  current_co VARCHAR(100) DEFAULT NULL,
  reorder_level INT NOT NULL DEFAULT 5,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -67,7 +69,7 @@ CREATE TABLE transactions (
  item_id INT NULL,
  serial_number VARCHAR(80) NULL,
  item_description VARCHAR(150) NOT NULL,
- action_type ENUM('Received','Issued','Returned','Adjusted') NOT NULL,
+ action_type ENUM('Received','Issued','Returned','Disposed','Adjusted') NOT NULL,
  quantity INT NOT NULL DEFAULT 1,
  pic VARCHAR(100) DEFAULT NULL,
  location VARCHAR(80) DEFAULT NULL,
@@ -91,9 +93,9 @@ INSERT INTO users (name, username, password, role) VALUES
 ('Staff User','staff','$2y$12$eTualBAnaF3vIU5JxGgYPu7SJ6szaLMxCEmQb5g38E05S3CpEGn0y','staff'),
 ('Viewer User','viewer','$2y$12$eTualBAnaF3vIU5JxGgYPu7SJ6szaLMxCEmQb5g38E05S3CpEGn0y','viewer');
 
-INSERT INTO items (item_description, serial_number, location, uom, boh, total_received, total_issued, total_returned, actual_stock, reorder_level, status) VALUES
-('Dell Pro 14 Laptop','PBC123','Rack 1','Unit',0,5,0,0,5,2,'Available'),
-('USB Mouse','5718185','Cabinet 1','Pc',0,50,0,0,50,10,'Available');
+INSERT INTO items (item_description, serial_number, location, uom, asset_classification, boh, total_received, total_issued, total_returned, total_disposed, actual_stock, reorder_level, status) VALUES
+('Dell Pro 14 Laptop','PBC123','Rack 1','Unit','Fixed Asset',0,5,0,0,0,5,2,'Available'),
+('USB Mouse','5718185','Cabinet 1','Pc','Non Fixed-Asset',0,50,0,0,0,50,10,'Available');
 
 INSERT INTO no_serial_items (item_description, item_code, default_location, uom) VALUES
 ('AA Battery','NS-AA-BATTERY','Storage Room','Pc'),
@@ -118,8 +120,8 @@ INSERT INTO no_serial_items (item_description, item_code, default_location, uom)
 ('Masking tape 1','NS-MASKING-TAPE-1','Storage Room','Pc'),
 ('Sticker paper','NS-STICKER-PAPER','Storage Room','Pack');
 
-INSERT INTO items (item_description, serial_number, location, uom, boh, total_received, total_issued, total_returned, actual_stock, reorder_level, status)
-SELECT item_description, item_code, default_location, uom, 0, 0, 0, 0, 0, 5, 'Available'
+INSERT INTO items (item_description, serial_number, location, uom, boh, total_received, total_issued, total_returned, total_disposed, actual_stock, reorder_level, status)
+SELECT item_description, item_code, default_location, uom, 0, 0, 0, 0, 0, 0, 5, 'Available'
 FROM no_serial_items
 ON DUPLICATE KEY UPDATE
  item_description=VALUES(item_description),

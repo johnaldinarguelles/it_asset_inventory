@@ -17,6 +17,7 @@
     <?php if(is_admin()): ?><a class='navlink <?= $page=="receive.php"?"active":"" ?>' href='receive.php'><i class='bi bi-box-arrow-in-down'></i> Receive</a><?php endif; ?>
     <?php if(can_transact()): ?><a class='navlink <?= $page=="issue.php"?"active":"" ?>' href='issue.php'><i class='bi bi-box-arrow-up'></i> Issue</a><?php endif; ?>
     <?php if(can_transact()): ?><a class='navlink <?= $page=="return.php"?"active":"" ?>' href='return.php'><i class='bi bi-arrow-counterclockwise'></i> Return</a><?php endif; ?>
+    <?php if(can_transact()): ?><a class='navlink <?= $page=="disposal.php"?"active":"" ?>' href='disposal.php'><i class='bi bi-trash3'></i> Disposal</a><?php endif; ?>
     <a class='navlink <?= $page=="transactions.php"?"active":"" ?>' href='transactions.php'><i class='bi bi-clock-history'></i> Transaction Log</a>
     <a class='navlink <?= $page=="reports.php"?"active":"" ?>' href='reports.php'><i class='bi bi-bar-chart-line'></i> Reports</a>
     <?php if(is_admin()): ?><a class='navlink <?= $page=="users.php"?"active":"" ?>' href='users.php'><i class='bi bi-people'></i> Users</a><?php endif; ?>

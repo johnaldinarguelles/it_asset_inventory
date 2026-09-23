@@ -2,7 +2,7 @@
 require_admin();
 $msg = '';
 $err = '';
-$locations = ['Rack 1', 'Rack 2', 'Rack 3', 'Rack 4', 'Rack 5', 'Rack 6', 'Rack 7', 'Rack 8', 'Cabinet 1', 'Cabinet 2', 'Storage Room'];
+$locations = inventory_locations();
 $uoms = ['Unit', 'Pc', 'Pack', 'Bottles', 'Box', 'Pairs', 'Ream', 'Roll', 'Set'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $desc = trim($_POST['item_description'] ?? '');
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 }
-$res = $conn->query("SELECT n.*, i.id item_id, (i.boh+i.total_received+i.total_returned-i.total_issued) stock, i.total_received, i.total_issued, i.total_returned FROM no_serial_items n LEFT JOIN items i ON i.serial_number=n.item_code ORDER BY n.created_at DESC");
+$res = $conn->query("SELECT n.*, i.id item_id, (i.boh+i.total_received+i.total_returned-i.total_issued-i.total_disposed) stock, i.total_received, i.total_issued, i.total_returned, i.total_disposed FROM no_serial_items n LEFT JOIN items i ON i.serial_number=n.item_code ORDER BY n.created_at DESC");
 ?>
 <div class='page-head'><div><h3><i class='bi bi-upc-scan'></i> No Serial Items Maintenance</h3><p class='page-sub'>Manage general item codes for consumables and non-serialized stock</p></div></div>
 <?php if ($msg): ?><div class='alert alert-success d-flex align-items-center gap-2'><i class='bi bi-check-circle-fill'></i><span><?= e($msg) ?></span></div><?php endif; ?>
@@ -69,6 +69,7 @@ $res = $conn->query("SELECT n.*, i.id item_id, (i.boh+i.total_received+i.total_r
             <th>Received</th>
             <th>Usage</th>
             <th>Return</th>
+            <th>Disposed</th>
             <th>Stock</th>
             <th>Action</th>
           </tr>
@@ -83,6 +84,7 @@ $res = $conn->query("SELECT n.*, i.id item_id, (i.boh+i.total_received+i.total_r
               <td><?= e($r['total_received'] ?? 0) ?></td>
               <td><?= e($r['total_issued'] ?? 0) ?></td>
               <td><?= e($r['total_returned'] ?? 0) ?></td>
+              <td><?= e($r['total_disposed'] ?? 0) ?></td>
               <td><?= e($r['stock'] ?? 0) ?></td>
               <td><?php if ($r['item_id']): ?><a class='btn btn-sm btn-outline-info' href='view_item.php?id=<?= $r['item_id'] ?>'><i class='bi bi-eye'></i> View</a><?php endif; ?></td>
             </tr><?php endwhile; ?>

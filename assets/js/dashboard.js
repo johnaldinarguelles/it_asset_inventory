@@ -45,10 +45,10 @@
     Chart.defaults.font.family = 'Inter, Arial, sans-serif';
     Chart.defaults.color = t.text;
 
-    const blue = '#2563eb', orange = '#f97316', green = '#16a34a', red = '#dc2626', cyan = '#06b6d4';
+    const blue = '#2563eb', orange = '#f97316', green = '#16a34a', red = '#dc2626', cyan = '#06b6d4', purple = '#7c3aed';
 
     const monthlyCanvas = document.getElementById('monthlyChart');
-    const monthlyHasData = hasAny(data.received, data.issued, data.returned);
+    const monthlyHasData = hasAny(data.received, data.issued, data.returned, data.disposed);
     showEmptyState(monthlyCanvas, !monthlyHasData);
     if (monthlyHasData) {
       charts.push(new Chart(monthlyCanvas, {
@@ -58,7 +58,8 @@
           datasets: [
             { label: 'Received', data: data.received, backgroundColor: green, borderRadius: 6, maxBarThickness: 28 },
             { label: 'Issued', data: data.issued, backgroundColor: orange, borderRadius: 6, maxBarThickness: 28 },
-            { label: 'Returned', data: data.returned, backgroundColor: cyan, borderRadius: 6, maxBarThickness: 28 }
+            { label: 'Returned', data: data.returned, backgroundColor: cyan, borderRadius: 6, maxBarThickness: 28 },
+            { label: 'Disposed', data: data.disposed || [], backgroundColor: purple, borderRadius: 6, maxBarThickness: 28 }
           ]
         },
         options: {
@@ -84,7 +85,7 @@
     const statusTotal = (data.status || []).reduce((sum, s) => sum + Number(s.c), 0);
     showEmptyState(statusCanvas, statusTotal === 0);
     if (statusTotal > 0) {
-      const statusColors = { 'Available': green, 'Low Stock': orange, 'Out of Stock': red, 'Issued': blue };
+      const statusColors = { 'Available': green, 'Low Stock': orange, 'Out of Stock': red, 'Issued': blue, 'Disposed': purple };
       charts.push(new Chart(statusCanvas, {
         type: 'doughnut',
         data: {

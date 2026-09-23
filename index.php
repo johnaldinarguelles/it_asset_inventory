@@ -1,18 +1,19 @@
 <?php include 'includes/header.php';
-$stats=$conn->query("SELECT COUNT(*) items, COALESCE(SUM(boh+total_received+total_returned-total_issued),0) stock, COALESCE(SUM(total_issued),0) issued, COALESCE(SUM(total_returned),0) returned, COALESCE(SUM(total_received),0) received, SUM(CASE WHEN (boh+total_received+total_returned-total_issued)<=reorder_level AND (boh+total_received+total_returned-total_issued)>0 THEN 1 ELSE 0 END) low, SUM(CASE WHEN (boh+total_received+total_returned-total_issued)<=0 THEN 1 ELSE 0 END) `out` FROM items")->fetch_assoc();
-$statuses=$conn->query("SELECT CASE WHEN (boh+total_received+total_returned-total_issued)<=0 THEN 'Out of Stock' WHEN (boh+total_received+total_returned-total_issued)<=reorder_level THEN 'Low Stock' WHEN status='Issued' THEN 'Issued' ELSE 'Available' END s, COUNT(*) c FROM items GROUP BY s")->fetch_all(MYSQLI_ASSOC);
-$months=$conn->query("SELECT DATE_FORMAT(created_at,'%Y-%m') m, action_type, SUM(quantity) q FROM transactions GROUP BY m, action_type ORDER BY m DESC LIMIT 18");
-$labels=[];$rec=[];$iss=[];$ret=[]; while($r=$months->fetch_assoc()){ if(!in_array($r['m'],$labels))$labels[]=$r['m']; if($r['action_type']=='Received')$rec[$r['m']]=$r['q']; if($r['action_type']=='Issued')$iss[$r['m']]=$r['q']; if($r['action_type']=='Returned')$ret[$r['m']]=$r['q']; }
-$labels=array_reverse($labels);
+$stats=$conn->query("SELECT COUNT(*) items, COALESCE(SUM(boh+total_received+total_returned-total_issued-total_disposed),0) stock, COALESCE(SUM(total_issued),0) issued, COALESCE(SUM(total_returned),0) returned, COALESCE(SUM(total_received),0) received, COALESCE(SUM(total_disposed),0) disposed, SUM(CASE WHEN (boh+total_received+total_returned-total_issued-total_disposed)<=reorder_level AND (boh+total_received+total_returned-total_issued-total_disposed)>0 THEN 1 ELSE 0 END) low, SUM(CASE WHEN (boh+total_received+total_returned-total_issued-total_disposed)<=0 THEN 1 ELSE 0 END) `out` FROM items")->fetch_assoc();
+$statuses=$conn->query("SELECT CASE WHEN status='Disposed' THEN 'Disposed' WHEN (boh+total_received+total_returned-total_issued-total_disposed)<=0 THEN 'Out of Stock' WHEN (boh+total_received+total_returned-total_issued-total_disposed)<=reorder_level THEN 'Low Stock' WHEN status='Issued' THEN 'Issued' ELSE 'Available' END s, COUNT(*) c FROM items GROUP BY s")->fetch_all(MYSQLI_ASSOC);
+$monthRows=$conn->query("SELECT DATE_FORMAT(created_at,'%Y-%m') m, action_type, SUM(quantity) q FROM transactions GROUP BY m, action_type ORDER BY m DESC LIMIT 18")->fetch_all(MYSQLI_ASSOC);
+$labels=array_values(array_unique(array_map(fn($r)=>$r['m'],$monthRows))); $labels=array_reverse($labels);
+$rec=inventory_monthly_quantities($monthRows,'Received'); $iss=inventory_monthly_quantities($monthRows,'Issued'); $ret=inventory_monthly_quantities($monthRows,'Returned'); $disp=inventory_monthly_quantities($monthRows,'Disposed');
 $labelsDisplay=array_map(fn($m)=>date('M Y',strtotime($m.'-01')),$labels);
 
-$trend=['received'=>null,'issued'=>null,'returned'=>null];
+$trend=['received'=>null,'issued'=>null,'returned'=>null,'disposed'=>null];
 if(count($labels)>=2){
   $curM=$labels[count($labels)-1]; $prevM=$labels[count($labels)-2];
   $pctChange=function($cur,$prev){ if($prev==0) return $cur>0?100:0; return round((($cur-$prev)/$prev)*100); };
   $trend['received']=$pctChange((int)($rec[$curM]??0),(int)($rec[$prevM]??0));
   $trend['issued']=$pctChange((int)($iss[$curM]??0),(int)($iss[$prevM]??0));
   $trend['returned']=$pctChange((int)($ret[$curM]??0),(int)($ret[$prevM]??0));
+  $trend['disposed']=$pctChange((int)($disp[$curM]??0),(int)($disp[$prevM]??0));
 }
 function trend_badge($pct){
   if($pct===null) return '';
@@ -22,11 +23,11 @@ function trend_badge($pct){
 }
 $topIssued=$conn->query("SELECT item_description, SUM(quantity) q FROM transactions WHERE action_type='Issued' GROUP BY item_description ORDER BY q DESC LIMIT 8")->fetch_all(MYSQLI_ASSOC);
 $topReceived=$conn->query("SELECT item_description, SUM(quantity) q FROM transactions WHERE action_type='Received' GROUP BY item_description ORDER BY q DESC LIMIT 8")->fetch_all(MYSQLI_ASSOC);
-$low=$conn->query("SELECT *,(boh+total_received+total_returned-total_issued) stock FROM items WHERE (boh+total_received+total_returned-total_issued)<=reorder_level ORDER BY stock ASC LIMIT 8");
+$low=$conn->query("SELECT *,(boh+total_received+total_returned-total_issued-total_disposed) stock FROM items WHERE (boh+total_received+total_returned-total_issued-total_disposed)<=reorder_level ORDER BY stock ASC LIMIT 8");
 $recent=$conn->query("SELECT t.*, u.name u_name FROM transactions t LEFT JOIN users u ON u.id=t.created_by ORDER BY t.created_at DESC, t.id DESC LIMIT 8")->fetch_all(MYSQLI_ASSOC);
 ?>
 <div class='page-head'>
-  <div><h3><i class='bi bi-speedometer2'></i> Dashboard</h3><p class='page-sub'>Real-time overview of inventory levels and activity</p></div>
+  <div><h3><i class='bi bi-speedometer2'></i> Dashboard</h3><p class='page-sub'>Real-time overview of inventory levels and activity, including disposal trends</p></div>
 </div>
 <div class='row g-3 mb-4'>
   <div class='col-6 col-md-4 col-xl-2'><div class='stat'><small><i class='bi bi-box-seam'></i> Total Items</small><h3><?=number_format($stats['items'])?></h3></div></div>
@@ -34,11 +35,12 @@ $recent=$conn->query("SELECT t.*, u.name u_name FROM transactions t LEFT JOIN us
   <div class='col-6 col-md-4 col-xl-2'><div class='stat green'><small><i class='bi bi-box-arrow-in-down'></i> Received</small><h3><?=number_format($stats['received'])?></h3><?=trend_badge($trend['received'])?></div></div>
   <div class='col-6 col-md-4 col-xl-2'><div class='stat orange'><small><i class='bi bi-box-arrow-up'></i> Issued / Usage</small><h3><?=number_format($stats['issued'])?></h3><?=trend_badge($trend['issued'])?></div></div>
   <div class='col-6 col-md-4 col-xl-2'><div class='stat red'><small><i class='bi bi-arrow-counterclockwise'></i> Returned</small><h3><?=number_format($stats['returned'])?></h3><?=trend_badge($trend['returned'])?></div></div>
+  <div class='col-6 col-md-4 col-xl-2'><div class='stat purple'><small><i class='bi bi-trash3'></i> Disposed</small><h3><?=number_format($stats['disposed'])?></h3><?=trend_badge($trend['disposed'])?></div></div>
   <div class='col-6 col-md-4 col-xl-2'><div class='stat purple'><small><i class='bi bi-exclamation-triangle'></i> Low / Out of Stock</small><h3><?=number_format((int)$stats['low']+(int)$stats['out'])?></h3></div></div>
 </div>
 
 <div class='row g-3 mb-4'>
-  <div class='col-lg-8'><div class='card cardx p-4 h-100'><h5 class='mb-1'><i class='bi bi-graph-up'></i> Monthly Analytics</h5><p class='text-muted small mb-3'>Received / Issued / Returned quantities over time</p><div class='chart-box chart-lg'><canvas id='monthlyChart'></canvas></div></div></div>
+  <div class='col-lg-8'><div class='card cardx p-4 h-100'><h5 class='mb-1'><i class='bi bi-graph-up'></i> Monthly Analytics</h5><p class='text-muted small mb-3'>Received / Issued / Returned / Disposed quantities over time</p><div class='chart-box chart-lg'><canvas id='monthlyChart'></canvas></div></div></div>
   <div class='col-lg-4'><div class='card cardx p-4 h-100'><h5 class='mb-1'><i class='bi bi-pie-chart'></i> Stock Status</h5><p class='text-muted small mb-3'>Distribution of items by availability</p><div class='chart-box'><canvas id='statusChart'></canvas></div></div></div>
 </div>
 
@@ -52,7 +54,7 @@ $recent=$conn->query("SELECT t.*, u.name u_name FROM transactions t LEFT JOIN us
   <div class='col-lg-7'><div class='card cardx p-4 h-100'><h5 class='mb-3'><i class='bi bi-clock-history'></i> Recent Transactions</h5><?php if(!$recent): ?><div class='text-muted small py-4 text-center'><i class='bi bi-inboxes d-block mb-2' style='font-size:22px'></i>No transactions recorded yet.</div><?php else: ?><div class='table-responsive'><table class='table table-sm align-middle'><thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>PIC</th><th>By</th></tr></thead><tbody><?php foreach($recent as $t): $badge=['Received'=>'bg-success','Issued'=>'bg-warning text-dark','Returned'=>'bg-info text-dark','Adjusted'=>'bg-secondary'][$t['action_type']]??'bg-secondary'; ?><tr><td class='text-nowrap'><?=date('M d, H:i',strtotime($t['created_at']))?></td><td class='text-wrap'><?=e($t['item_description'])?></td><td><span class='badge <?=$badge?>'><?=$t['action_type']?></span></td><td><?=(int)$t['quantity']?></td><td><?=e($t['pic'])?></td><td><?=e($t['u_name'])?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></div></div>
 </div>
 <script>
-window.chartData={labels:<?=json_encode($labelsDisplay)?>,received:<?=json_encode(array_map(fn($m)=>(int)($rec[$m]??0),$labels))?>,issued:<?=json_encode(array_map(fn($m)=>(int)($iss[$m]??0),$labels))?>,returned:<?=json_encode(array_map(fn($m)=>(int)($ret[$m]??0),$labels))?>,status:<?=json_encode($statuses)?>,topIssued:<?=json_encode($topIssued)?>,topReceived:<?=json_encode($topReceived)?>};
+window.chartData={labels:<?=json_encode($labelsDisplay)?>,received:<?=json_encode(array_map(fn($m)=>(int)($rec[$m]??0),$labels))?>,issued:<?=json_encode(array_map(fn($m)=>(int)($iss[$m]??0),$labels))?>,returned:<?=json_encode(array_map(fn($m)=>(int)($ret[$m]??0),$labels))?>,disposed:<?=json_encode(array_map(fn($m)=>(int)($disp[$m]??0),$labels))?>,status:<?=json_encode($statuses)?>,topIssued:<?=json_encode($topIssued)?>,topReceived:<?=json_encode($topReceived)?>};
 </script>
 <script src='assets/js/dashboard.js'></script>
 <?php include 'includes/footer.php'; ?>

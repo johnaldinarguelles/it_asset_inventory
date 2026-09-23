@@ -19,13 +19,14 @@ $whereSql = $where ? ' WHERE '.implode(' AND ', $where) : '';
 
 $summarySql = "SELECT action_type, SUM(quantity) q FROM transactions $whereSql GROUP BY action_type";
 $stmt = $conn->prepare($summarySql); if($params) $stmt->bind_param($types, ...$params); $stmt->execute();
-$rs = $stmt->get_result(); $data=['Received'=>0,'Issued'=>0,'Returned'=>0,'Adjusted'=>0]; while($r=$rs->fetch_assoc()) $data[$r['action_type']] = (int)$r['q'];
+$rs = $stmt->get_result(); $data=['Received'=>0,'Issued'=>0,'Returned'=>0,'Disposed'=>0,'Adjusted'=>0]; while($r=$rs->fetch_assoc()) $data[$r['action_type']] = (int)$r['q'];
 
 $itemSql = "SELECT item_description, serial_number, location,
  SUM(CASE WHEN action_type='Received' THEN quantity ELSE 0 END) total_received,
  SUM(CASE WHEN action_type='Issued' THEN quantity ELSE 0 END) total_issued,
  SUM(CASE WHEN action_type='Returned' THEN quantity ELSE 0 END) total_returned,
- SUM(CASE WHEN action_type='Received' THEN quantity WHEN action_type='Returned' THEN quantity WHEN action_type='Issued' THEN -quantity ELSE 0 END) net_movement
+ SUM(CASE WHEN action_type='Disposed' THEN quantity ELSE 0 END) total_disposed,
+ SUM(CASE WHEN action_type='Received' THEN quantity WHEN action_type='Returned' THEN quantity WHEN action_type IN ('Issued','Disposed') THEN -quantity ELSE 0 END) net_movement
  FROM transactions $whereSql GROUP BY item_description, serial_number, location ORDER BY item_description";
 $stmt = $conn->prepare($itemSql); if($params) $stmt->bind_param($types, ...$params); $stmt->execute(); $itemRows = $stmt->get_result();
 
@@ -48,7 +49,7 @@ $qs = http_build_query($_GET);
     <div class='col-md-2'><label>Month</label><input type='month' name='month' value='<?=e($month)?>' class='form-control'></div>
     <div class='col-md-2'><label>From</label><input type='date' name='from' value='<?=e($from)?>' class='form-control'></div>
     <div class='col-md-2'><label>To</label><input type='date' name='to' value='<?=e($to)?>' class='form-control'></div>
-    <div class='col-md-2'><label>Action</label><select class='form-select' name='action_type'><option value=''>All</option><?php foreach(['Received','Issued','Returned','Adjusted'] as $a):?><option value='<?=$a?>' <?=$action===$a?'selected':''?>><?=$a?></option><?php endforeach;?></select></div>
+    <div class='col-md-2'><label>Action</label><select class='form-select' name='action_type'><option value=''>All</option><?php foreach(['Received','Issued','Returned','Disposed','Adjusted'] as $a):?><option value='<?=$a?>' <?=$action===$a?'selected':''?>><?=$a?></option><?php endforeach;?></select></div>
     <div class='col-md-2'><label>Item</label><input class='form-control' name='item' value='<?=e($item)?>' placeholder='Description'></div>
     <div class='col-md-2'><label>Serial/Code</label><input class='form-control' name='serial_number' value='<?=e($serial)?>' placeholder='Code'></div>
     <div class='col-md-2'><label>PIC</label><input class='form-control' name='pic' value='<?=e($pic)?>' placeholder='PIC'></div>
@@ -62,25 +63,26 @@ $qs = http_build_query($_GET);
   <div class='col-md-3'><div class='stat green'><small><i class='bi bi-box-arrow-in-down'></i> Total Received</small><h3><?=number_format($data['Received'])?></h3></div></div>
   <div class='col-md-3'><div class='stat orange'><small><i class='bi bi-box-arrow-up'></i> Total Issued / Usage</small><h3><?=number_format($data['Issued'])?></h3></div></div>
   <div class='col-md-3'><div class='stat red'><small><i class='bi bi-arrow-counterclockwise'></i> Total Returned</small><h3><?=number_format($data['Returned'])?></h3></div></div>
-  <div class='col-md-3'><div class='stat'><small><i class='bi bi-graph-up-arrow'></i> Net Stock Movement</small><h3><?=number_format($data['Received']+$data['Returned']-$data['Issued'])?></h3></div></div>
+  <div class='col-md-3'><div class='stat purple'><small><i class='bi bi-trash3'></i> Total Disposed</small><h3><?=number_format($data['Disposed'])?></h3></div></div>
+  <div class='col-md-3'><div class='stat'><small><i class='bi bi-graph-up-arrow'></i> Net Stock Movement</small><h3><?=number_format($data['Received']+$data['Returned']-$data['Issued']-$data['Disposed'])?></h3></div></div>
 </div>
 
 <div class='card cardx p-4 mb-3'>
   <h5 class='mb-1'><i class='bi bi-bar-chart-line'></i> Filtered Range Summary</h5>
-  <p class='text-muted small mb-3'>Received / Issued / Returned totals for the currently applied filters</p>
+  <p class='text-muted small mb-3'>Received / Issued / Returned / Disposed totals for the currently applied filters</p>
   <div class='chart-box' style='height:220px'><canvas id='reportSummaryChart'></canvas></div>
 </div>
 <script>
-window.reportSummaryData = { received: <?=(int)$data['Received']?>, issued: <?=(int)$data['Issued']?>, returned: <?=(int)$data['Returned']?> };
+window.reportSummaryData = { received: <?=(int)$data['Received']?>, issued: <?=(int)$data['Issued']?>, returned: <?=(int)$data['Returned']?>, disposed: <?=(int)$data['Disposed']?> };
 </script>
 
 <div class='card cardx p-3 mb-3'>
   <h5><i class='bi bi-list-columns'></i> Inventory Movement Summary</h5>
   <div class='table-responsive'><table class='table table-hover datatable'>
-    <thead><tr><th>Item</th><th>Serial / Code</th><th>Location</th><th>Total Received</th><th>Total Usage / Issued</th><th>Total Return</th><th>Net Movement</th></tr></thead>
+    <thead><tr><th>Item</th><th>Serial / Code</th><th>Location</th><th>Total Received</th><th>Total Usage / Issued</th><th>Total Return</th><th>Total Disposed</th><th>Net Movement</th></tr></thead>
     <tbody><?php while($r=$itemRows->fetch_assoc()):?><tr>
       <td><?=e($r['item_description'])?></td><td><?=e($r['serial_number'])?></td><td><?=e($r['location'])?></td>
-      <td><?=$r['total_received']?></td><td><?=$r['total_issued']?></td><td><?=$r['total_returned']?></td><td><?=$r['net_movement']?></td>
+      <td><?=$r['total_received']?></td><td><?=$r['total_issued']?></td><td><?=$r['total_returned']?></td><td><?=$r['total_disposed']?></td><td><?=$r['net_movement']?></td>
     </tr><?php endwhile;?></tbody>
   </table></div>
 </div>
@@ -105,7 +107,7 @@ window.reportSummaryData = { received: <?=(int)$data['Received']?>, issued: <?=(
     const box = canvas.closest('.chart-box');
     const existingEmpty = box.querySelector('.chart-empty');
     if (existingEmpty) existingEmpty.remove();
-    const hasData = d.received > 0 || d.issued > 0 || d.returned > 0;
+    const hasData = d.received > 0 || d.issued > 0 || d.returned > 0 || d.disposed > 0;
     canvas.style.visibility = hasData ? 'visible' : 'hidden';
     if (!hasData) {
       const empty = document.createElement('div');
@@ -117,10 +119,10 @@ window.reportSummaryData = { received: <?=(int)$data['Received']?>, issued: <?=(
     window.reportChartInstance = new Chart(canvas, {
       type: 'bar',
       data: {
-        labels: ['Received', 'Issued', 'Returned'],
+        labels: ['Received', 'Issued', 'Returned', 'Disposed'],
         datasets: [{
-          data: [d.received, d.issued, d.returned],
-          backgroundColor: ['#16a34a', '#f97316', '#06b6d4'],
+          data: [d.received, d.issued, d.returned, d.disposed],
+          backgroundColor: ['#16a34a', '#f97316', '#06b6d4', '#7c3aed'],
           borderRadius: 8,
           maxBarThickness: 60
         }]

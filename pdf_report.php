@@ -16,6 +16,6 @@ $stmt=$conn->prepare("SELECT * FROM transactions $whereSql ORDER BY created_at D
 <div class='no-print'><button onclick='window.print()'>Print / Save as PDF</button></div>
 <h2>IT Asset Transaction Report</h2>
 <p>Generated: <?=date('Y-m-d H:i:s')?> | Filter: <?=e(http_build_query($_GET) ?: 'All records')?></p>
-<table><thead><tr><th>Date When</th><th>What / Action</th><th>Serial / Code</th><th>Item</th><th>Qty</th><th>PIC</th><th>Location</th><th>Week</th></tr></thead><tbody>
-<?php while($r=$res->fetch_assoc()):?><tr><td><?=e($r['created_at'])?></td><td><?=e($r['action_type'])?></td><td><?=e($r['serial_number'])?></td><td><?=e($r['item_description'])?></td><td><?=$r['quantity']?></td><td><?=e($r['pic'])?></td><td><?=e($r['location'])?></td><td><?=e($r['week_no'])?></td></tr><?php endwhile;?>
+<table><thead><tr><th>Date When</th><th>What / Action</th><th>Serial / Code</th><th>Item</th><th>Qty</th><th>PIC</th><th>Location</th><th>Week</th><th>Remarks</th></tr></thead><tbody>
+<?php while($r=$res->fetch_assoc()):?><tr><td><?=e($r['created_at'])?></td><td><?=e($r['action_type'])?></td><td><?=e($r['serial_number'])?></td><td><?=e($r['item_description'])?></td><td><?=$r['quantity']?></td><td><?=e($r['pic'])?></td><td><?=e($r['location'])?></td><td><?=e($r['week_no'])?></td><td><?=e($r['remarks'])?></td></tr><?php endwhile;?>
 </tbody></table></body></html>

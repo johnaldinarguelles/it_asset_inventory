@@ -11,12 +11,13 @@ function process_issue_row($conn, $s, $q, $pic)
   if ($s === '') return ['ok' => false, 'message' => 'Serial / Barcode / Item Code is required.'];
   if ($pic === '') return ['ok' => false, 'message' => 'PIC / C/O name is required.'];
 
-  $stmt = $conn->prepare('SELECT *, (boh + total_received + total_returned - total_issued) AS stock FROM items WHERE serial_number=? LIMIT 1 FOR UPDATE');
+  $stmt = $conn->prepare('SELECT *, (boh + total_received + total_returned - total_issued - total_disposed) AS stock FROM items WHERE serial_number=? LIMIT 1 FOR UPDATE');
   $stmt->bind_param('s', $s);
   $stmt->execute();
   $item = $stmt->get_result()->fetch_assoc();
 
   if (!$item) return ['ok' => false, 'message' => 'Code ' . $s . ' not found in inventory.'];
+  if (($item['status'] ?? '') === 'Disposed') return ['ok' => false, 'message' => 'Disposed item ' . $item['item_description'] . ' cannot be issued.'];
   if ((int)$item['stock'] < $q) return ['ok' => false, 'message' => 'Not enough stock for ' . $item['item_description'] . ' (available: ' . $item['stock'] . ', requested: ' . $q . ').'];
 
   $id = (int)$item['id'];
