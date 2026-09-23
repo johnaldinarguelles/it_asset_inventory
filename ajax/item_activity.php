@@ -64,7 +64,7 @@ $rows = $tx->get_result();
             <?php endforeach; ?>
         </select>
     </div>
-    <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Filter Activities</button></div>
+    <div class="col-md-3"><button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i> Filter Activities</button></div>
 </form>
 
 <div class="table-responsive">

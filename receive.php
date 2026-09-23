@@ -76,9 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 ?>
-<h3>Receiving Process</h3>
-<?php if ($msg): ?><div class='alert alert-success'><?= $msg ?></div><?php endif; ?>
-<?php if ($err): ?><div class='alert alert-danger'><?= $err ?></div><?php endif; ?>
+<div class='page-head'><div><h3><i class='bi bi-box-arrow-in-down'></i> Receiving Process</h3><p class='page-sub'>Log incoming stock into the inventory master</p></div></div>
+<?php if ($msg): ?><div class='alert alert-success d-flex align-items-center gap-2'><i class='bi bi-check-circle-fill'></i><span><?= $msg ?></span></div><?php endif; ?>
+<?php if ($err): ?><div class='alert alert-danger d-flex align-items-center gap-2'><i class='bi bi-exclamation-triangle-fill'></i><span><?= $err ?></span></div><?php endif; ?>
 
 <div class='card cardx p-4'>
   <div class='alert alert-info mb-3'>Use <b>+ Add Entry</b> for multiple receiving. For non-unique items like mouse or office supplies, use one general barcode/item code, example <b>5718185</b>. Every receive using the same code will add to the same stock record. The previous Description, Location, UOM, Quantity, and PIC/Receiver will remain on the next row. Serial/Barcode is cleared for easy scanning.</div>
@@ -121,14 +121,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <option value="Ms. Cecile">
               </datalist>
             </td>
-            <td><button type='button' class='btn btn-outline-danger btn-sm remove-row' disabled>Remove</button></td>
+            <td><button type='button' class='btn btn-outline-danger btn-sm remove-row' disabled aria-label='Remove row'><i class='bi bi-trash'></i></button></td>
           </tr>
         </tbody>
       </table>
     </div>
     <div class='d-flex gap-2 justify-content-between flex-wrap'>
-      <button type='button' class='btn btn-primary' id='addReceiveRow'>+ Add Entry</button>
-      <button class='btn btn-success'>Save All Receiving</button>
+      <button type='button' class='btn btn-primary' id='addReceiveRow'><i class='bi bi-plus-lg'></i> Add Entry</button>
+      <button class='btn btn-success'><i class='bi bi-save'></i> Save All Receiving</button>
     </div>
   </form>
 </div>

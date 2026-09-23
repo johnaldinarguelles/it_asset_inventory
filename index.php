@@ -4,36 +4,55 @@ $statuses=$conn->query("SELECT CASE WHEN (boh+total_received+total_returned-tota
 $months=$conn->query("SELECT DATE_FORMAT(created_at,'%Y-%m') m, action_type, SUM(quantity) q FROM transactions GROUP BY m, action_type ORDER BY m DESC LIMIT 18");
 $labels=[];$rec=[];$iss=[];$ret=[]; while($r=$months->fetch_assoc()){ if(!in_array($r['m'],$labels))$labels[]=$r['m']; if($r['action_type']=='Received')$rec[$r['m']]=$r['q']; if($r['action_type']=='Issued')$iss[$r['m']]=$r['q']; if($r['action_type']=='Returned')$ret[$r['m']]=$r['q']; }
 $labels=array_reverse($labels);
+$labelsDisplay=array_map(fn($m)=>date('M Y',strtotime($m.'-01')),$labels);
+
+$trend=['received'=>null,'issued'=>null,'returned'=>null];
+if(count($labels)>=2){
+  $curM=$labels[count($labels)-1]; $prevM=$labels[count($labels)-2];
+  $pctChange=function($cur,$prev){ if($prev==0) return $cur>0?100:0; return round((($cur-$prev)/$prev)*100); };
+  $trend['received']=$pctChange((int)($rec[$curM]??0),(int)($rec[$prevM]??0));
+  $trend['issued']=$pctChange((int)($iss[$curM]??0),(int)($iss[$prevM]??0));
+  $trend['returned']=$pctChange((int)($ret[$curM]??0),(int)($ret[$prevM]??0));
+}
+function trend_badge($pct){
+  if($pct===null) return '';
+  $dir = $pct>=0?'up':'down';
+  $icon = $pct>=0?'bi-arrow-up-short':'bi-arrow-down-short';
+  return "<span class='trend-badge $dir'><i class='bi $icon'></i>".abs($pct)."% vs last month</span>";
+}
 $topIssued=$conn->query("SELECT item_description, SUM(quantity) q FROM transactions WHERE action_type='Issued' GROUP BY item_description ORDER BY q DESC LIMIT 8")->fetch_all(MYSQLI_ASSOC);
 $topReceived=$conn->query("SELECT item_description, SUM(quantity) q FROM transactions WHERE action_type='Received' GROUP BY item_description ORDER BY q DESC LIMIT 8")->fetch_all(MYSQLI_ASSOC);
 $low=$conn->query("SELECT *,(boh+total_received+total_returned-total_issued) stock FROM items WHERE (boh+total_received+total_returned-total_issued)<=reorder_level ORDER BY stock ASC LIMIT 8");
 $recent=$conn->query("SELECT t.*, u.name u_name FROM transactions t LEFT JOIN users u ON u.id=t.created_by ORDER BY t.created_at DESC, t.id DESC LIMIT 8")->fetch_all(MYSQLI_ASSOC);
 ?>
+<div class='page-head'>
+  <div><h3><i class='bi bi-speedometer2'></i> Dashboard</h3><p class='page-sub'>Real-time overview of inventory levels and activity</p></div>
+</div>
 <div class='row g-3 mb-4'>
-  <div class='col-6 col-md-4 col-xl-2'><div class='stat'><small>Total Items</small><h3><?=$stats['items']?></h3></div></div>
-  <div class='col-6 col-md-4 col-xl-2'><div class='stat'><small>Total Stock</small><h3><?=$stats['stock']?></h3></div></div>
-  <div class='col-6 col-md-4 col-xl-2'><div class='stat green'><small>Received</small><h3><?=$stats['received']?></h3></div></div>
-  <div class='col-6 col-md-4 col-xl-2'><div class='stat orange'><small>Issued / Usage</small><h3><?=$stats['issued']?></h3></div></div>
-  <div class='col-6 col-md-4 col-xl-2'><div class='stat red'><small>Returned</small><h3><?=$stats['returned']?></h3></div></div>
-  <div class='col-6 col-md-4 col-xl-2'><div class='stat purple'><small>Low / Out of Stock</small><h3><?=(int)$stats['low']+(int)$stats['out']?></h3></div></div>
+  <div class='col-6 col-md-4 col-xl-2'><div class='stat'><small><i class='bi bi-box-seam'></i> Total Items</small><h3><?=number_format($stats['items'])?></h3></div></div>
+  <div class='col-6 col-md-4 col-xl-2'><div class='stat'><small><i class='bi bi-stack'></i> Total Stock</small><h3><?=number_format($stats['stock'])?></h3></div></div>
+  <div class='col-6 col-md-4 col-xl-2'><div class='stat green'><small><i class='bi bi-box-arrow-in-down'></i> Received</small><h3><?=number_format($stats['received'])?></h3><?=trend_badge($trend['received'])?></div></div>
+  <div class='col-6 col-md-4 col-xl-2'><div class='stat orange'><small><i class='bi bi-box-arrow-up'></i> Issued / Usage</small><h3><?=number_format($stats['issued'])?></h3><?=trend_badge($trend['issued'])?></div></div>
+  <div class='col-6 col-md-4 col-xl-2'><div class='stat red'><small><i class='bi bi-arrow-counterclockwise'></i> Returned</small><h3><?=number_format($stats['returned'])?></h3><?=trend_badge($trend['returned'])?></div></div>
+  <div class='col-6 col-md-4 col-xl-2'><div class='stat purple'><small><i class='bi bi-exclamation-triangle'></i> Low / Out of Stock</small><h3><?=number_format((int)$stats['low']+(int)$stats['out'])?></h3></div></div>
 </div>
 
 <div class='row g-3 mb-4'>
-  <div class='col-lg-8'><div class='card cardx p-4 h-100'><h5 class='mb-1'>Monthly Analytics</h5><p class='text-muted small mb-3'>Received / Issued / Returned quantities over time</p><div class='chart-box chart-lg'><canvas id='monthlyChart'></canvas></div></div></div>
-  <div class='col-lg-4'><div class='card cardx p-4 h-100'><h5 class='mb-1'>Stock Status</h5><p class='text-muted small mb-3'>Distribution of items by availability</p><div class='chart-box'><canvas id='statusChart'></canvas></div></div></div>
+  <div class='col-lg-8'><div class='card cardx p-4 h-100'><h5 class='mb-1'><i class='bi bi-graph-up'></i> Monthly Analytics</h5><p class='text-muted small mb-3'>Received / Issued / Returned quantities over time</p><div class='chart-box chart-lg'><canvas id='monthlyChart'></canvas></div></div></div>
+  <div class='col-lg-4'><div class='card cardx p-4 h-100'><h5 class='mb-1'><i class='bi bi-pie-chart'></i> Stock Status</h5><p class='text-muted small mb-3'>Distribution of items by availability</p><div class='chart-box'><canvas id='statusChart'></canvas></div></div></div>
 </div>
 
 <div class='row g-3 mb-4'>
-  <div class='col-lg-6'><div class='card cardx p-4 h-100'><h5 class='mb-1'>Top Issued Items</h5><p class='text-muted small mb-3'>Most frequently issued this period</p><div class='chart-box chart-md'><canvas id='issuedChart'></canvas></div></div></div>
-  <div class='col-lg-6'><div class='card cardx p-4 h-100'><h5 class='mb-1'>Top Received Items</h5><p class='text-muted small mb-3'>Most frequently received this period</p><div class='chart-box chart-md'><canvas id='receivedChart'></canvas></div></div></div>
+  <div class='col-lg-6'><div class='card cardx p-4 h-100'><h5 class='mb-1'><i class='bi bi-box-arrow-up'></i> Top Issued Items</h5><p class='text-muted small mb-3'>Most frequently issued this period</p><div class='chart-box chart-md'><canvas id='issuedChart'></canvas></div></div></div>
+  <div class='col-lg-6'><div class='card cardx p-4 h-100'><h5 class='mb-1'><i class='bi bi-box-arrow-in-down'></i> Top Received Items</h5><p class='text-muted small mb-3'>Most frequently received this period</p><div class='chart-box chart-md'><canvas id='receivedChart'></canvas></div></div></div>
 </div>
 
 <div class='row g-3 mb-4'>
-  <div class='col-lg-5'><div class='card cardx p-4 h-100'><h5 class='mb-3'>Low Stock Alert</h5><div class='table-responsive'><table class='table table-sm align-middle'><thead><tr><th>Item</th><th style='width:120px'>Stock Level</th></tr></thead><tbody><?php while($i=$low->fetch_assoc()): $p=min(100,(int)$i['stock']/(max(1,(int)$i['reorder_level']*2))*100); ?><tr><td class='text-wrap'><?=e($i['item_description'])?></td><td><div class='d-flex align-items-center gap-2'><div class='progress flex-grow-1' style='height:8px'><div class='progress-bar <?= $i['stock']<=0?'bg-danger':($i['stock']<=$i['reorder_level']?'bg-warning':'') ?>' style='width:<?=$p?>%'></div></div><span class='small <?= $i['stock']<=0?'text-danger fw-bold':'text-warning fw-bold' ?>'><?=$i['stock']?></span></div></td></tr><?php endwhile; ?></tbody></table></div></div></div>
-  <div class='col-lg-7'><div class='card cardx p-4 h-100'><h5 class='mb-3'>Recent Transactions</h5><div class='table-responsive'><table class='table table-sm align-middle'><thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>PIC</th><th>By</th></tr></thead><tbody><?php foreach($recent as $t): $badge=['Received'=>'bg-success','Issued'=>'bg-warning text-dark','Returned'=>'bg-info text-dark','Adjusted'=>'bg-secondary'][$t['action_type']]??'bg-secondary'; ?><tr><td class='text-nowrap'><?=date('M d, H:i',strtotime($t['created_at']))?></td><td class='text-wrap'><?=e($t['item_description'])?></td><td><span class='badge <?=$badge?>'><?=$t['action_type']?></span></td><td><?=(int)$t['quantity']?></td><td><?=e($t['pic'])?></td><td><?=e($t['u_name'])?></td></tr><?php endforeach; ?></tbody></table></div></div></div>
+  <div class='col-lg-5'><div class='card cardx p-4 h-100'><h5 class='mb-3'><i class='bi bi-exclamation-triangle'></i> Low Stock Alert</h5><?php if($low->num_rows===0): ?><div class='text-muted small py-4 text-center'><i class='bi bi-check-circle d-block mb-2' style='font-size:22px'></i>All items are above their reorder level.</div><?php else: ?><div class='table-responsive'><table class='table table-sm align-middle'><thead><tr><th>Item</th><th style='width:120px'>Stock Level</th></tr></thead><tbody><?php while($i=$low->fetch_assoc()): $p=min(100,(int)$i['stock']/(max(1,(int)$i['reorder_level']*2))*100); ?><tr><td class='text-wrap'><?=e($i['item_description'])?></td><td><div class='d-flex align-items-center gap-2'><div class='progress flex-grow-1' style='height:8px'><div class='progress-bar <?= $i['stock']<=0?'bg-danger':($i['stock']<=$i['reorder_level']?'bg-warning':'') ?>' style='width:<?=$p?>%'></div></div><span class='small <?= $i['stock']<=0?'text-danger fw-bold':'text-warning fw-bold' ?>'><?=$i['stock']?></span></div></td></tr><?php endwhile; ?></tbody></table></div><?php endif; ?></div></div>
+  <div class='col-lg-7'><div class='card cardx p-4 h-100'><h5 class='mb-3'><i class='bi bi-clock-history'></i> Recent Transactions</h5><?php if(!$recent): ?><div class='text-muted small py-4 text-center'><i class='bi bi-inboxes d-block mb-2' style='font-size:22px'></i>No transactions recorded yet.</div><?php else: ?><div class='table-responsive'><table class='table table-sm align-middle'><thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>PIC</th><th>By</th></tr></thead><tbody><?php foreach($recent as $t): $badge=['Received'=>'bg-success','Issued'=>'bg-warning text-dark','Returned'=>'bg-info text-dark','Adjusted'=>'bg-secondary'][$t['action_type']]??'bg-secondary'; ?><tr><td class='text-nowrap'><?=date('M d, H:i',strtotime($t['created_at']))?></td><td class='text-wrap'><?=e($t['item_description'])?></td><td><span class='badge <?=$badge?>'><?=$t['action_type']?></span></td><td><?=(int)$t['quantity']?></td><td><?=e($t['pic'])?></td><td><?=e($t['u_name'])?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></div></div>
 </div>
 <script>
-window.chartData={labels:<?=json_encode($labels)?>,received:<?=json_encode(array_map(fn($m)=>(int)($rec[$m]??0),$labels))?>,issued:<?=json_encode(array_map(fn($m)=>(int)($iss[$m]??0),$labels))?>,returned:<?=json_encode(array_map(fn($m)=>(int)($ret[$m]??0),$labels))?>,status:<?=json_encode($statuses)?>,topIssued:<?=json_encode($topIssued)?>,topReceived:<?=json_encode($topReceived)?>};
+window.chartData={labels:<?=json_encode($labelsDisplay)?>,received:<?=json_encode(array_map(fn($m)=>(int)($rec[$m]??0),$labels))?>,issued:<?=json_encode(array_map(fn($m)=>(int)($iss[$m]??0),$labels))?>,returned:<?=json_encode(array_map(fn($m)=>(int)($ret[$m]??0),$labels))?>,status:<?=json_encode($statuses)?>,topIssued:<?=json_encode($topIssued)?>,topReceived:<?=json_encode($topReceived)?>};
 </script>
 <script src='assets/js/dashboard.js'></script>
 <?php include 'includes/footer.php'; ?>

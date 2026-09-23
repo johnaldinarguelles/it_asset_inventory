@@ -1,6 +1,48 @@
 <?php
-include 'includes/header.php';
+require_once 'config/auth.php';
 require_admin();
+
+// Must run before any HTML output (includes/header.php prints the page shell),
+// otherwise the CSV headers below are sent too late and the download is corrupted.
+if (isset($_GET['download_template'])) {
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="items_import_template.csv"');
+
+    $out = fopen('php://output', 'w');
+
+    fputcsv($out, [
+        'item_description',
+        'serial_number',
+        'location',
+        'uom',
+        'boh',
+        'total_received',
+        'total_issued',
+        'total_returned',
+        'actual_stock',
+        'pic',
+        'remarks'
+    ]);
+
+    fputcsv($out, [
+        'USB Mouse',
+        '5718185',
+        'Cabinet 1',
+        'Pc',
+        '0',
+        '50',
+        '0',
+        '0',
+        '50',
+        'John',
+        'Initial import'
+    ]);
+
+    fclose($out);
+    exit;
+}
+
+include 'includes/header.php';
 
 function cleanText($value)
 {
@@ -18,40 +60,6 @@ function cleanText($value)
 $msg = '';
 $errors = [];
 
-if (isset($_GET['download_template'])) {
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="items_import_template.csv"');
-
-    $out = fopen('php://output', 'w');
-
-    fputcsv($out, [
-        'item_description',
-        'serial_number',
-        'location',
-        'uom',
-        'boh',
-        'total_received',
-        'actual_stock',
-        'pic',
-        'remarks'
-    ]);
-
-    fputcsv($out, [
-        'USB Mouse',
-        '5718185',
-        'Cabinet 1',
-        'Pc',
-        '0',
-        '50',
-        '50',
-        'John',
-        'Initial import'
-    ]);
-
-    fclose($out);
-    exit;
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploaded_file($_FILES['csv']['tmp_name'])) {
     $fh = fopen($_FILES['csv']['tmp_name'], 'r');
 
@@ -61,16 +69,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
         $header = fgetcsv($fh);
 
         if (!$header) {
-            $errors[] = 'CSV file is empty or invalid.';
+            // Empty file: nothing to import, not an error.
+            $msg = 'Imported 0 rows.';
         } else {
+            $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', $header[0]);
             $header = array_map('trim', $header);
             $header = array_map('strtolower', $header);
 
             $count = 0;
             $rowNo = 1;
 
+            // Physical count sheets often list the same serial/item code more than
+            // once (e.g. one line per storage location). Merging duplicates here
+            // (summing quantities) instead of processing rows one-by-one against
+            // the DB is required so the last duplicate row doesn't silently
+            // overwrite and discard the actual_stock/received counted on earlier
+            // rows for the same serial_number - that was making imported totals
+            // undercount the sheet's true grand total.
+            $parsed = [];
+
             while (($row = fgetcsv($fh)) !== false) {
                 $rowNo++;
+
+                // Skip fully blank lines (common trailing newline from Excel/empty templates).
+                if ($row === [null] || $row === ['']) {
+                    continue;
+                }
 
                 if (count($row) !== count($header)) {
                     $errors[] = "Row $rowNo skipped: column count mismatch.";
@@ -87,6 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                 $received    = (int)($data['total_received'] ?? 0);
                 $actual      = (int)($data['actual_stock'] ?? $received);
 
+                // Older templates may not have these columns; null means "keep whatever is already on the item".
+                $issuedIn    = array_key_exists('total_issued', $data)   ? (int)$data['total_issued']   : null;
+                $returnedIn  = array_key_exists('total_returned', $data) ? (int)$data['total_returned'] : null;
+
                 $pic         = trim($data['pic'] ?? ($_SESSION['name'] ?? 'Import'));
                 $remarks     = trim($data['remarks'] ?? 'Imported from CSV');
 
@@ -100,7 +128,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                 //     continue;
                 // }
 
-                $check = $conn->prepare("SELECT id, actual_stock, reorder_level FROM items WHERE serial_number = ?");
+                if (isset($parsed[$serial])) {
+                    $p = &$parsed[$serial];
+                    $p['boh']       += $boh;
+                    $p['received']  += $received;
+                    $p['actual']    += $actual;
+                    if ($issuedIn !== null)   $p['issuedIn']   = ($p['issuedIn']   ?? 0) + $issuedIn;
+                    if ($returnedIn !== null) $p['returnedIn'] = ($p['returnedIn'] ?? 0) + $returnedIn;
+                    if ($location !== '' && strpos($p['location'], $location) === false) {
+                        $p['location'] = $p['location'] !== '' ? $p['location'] . '; ' . $location : $location;
+                    }
+                    $p['rows'][] = $rowNo;
+                    $errors[] = "Row $rowNo: serial/code '$serial' duplicates row {$p['rows'][0]} - quantities summed into one item.";
+                    unset($p);
+                    continue;
+                }
+
+                $parsed[$serial] = [
+                    'description' => $description,
+                    'location'    => $location,
+                    'uom'         => $uom,
+                    'boh'         => $boh,
+                    'received'    => $received,
+                    'actual'      => $actual,
+                    'issuedIn'    => $issuedIn,
+                    'returnedIn'  => $returnedIn,
+                    'pic'         => $pic,
+                    'remarks'     => $remarks,
+                    'rows'        => [$rowNo],
+                ];
+            }
+
+            $importedTotal = 0;
+
+            foreach ($parsed as $serial => $d) {
+                $description = $d['description'];
+                $location    = $d['location'];
+                $uom         = $d['uom'];
+                $received    = $d['received'];
+                $actual      = $d['actual'];
+                $issuedIn    = $d['issuedIn'];
+                $returnedIn  = $d['returnedIn'];
+                $pic         = $d['pic'];
+                $remarks     = $d['remarks'];
+
+                try {
+
+                $check = $conn->prepare("SELECT id, actual_stock, reorder_level, total_issued, total_returned FROM items WHERE serial_number = ?");
                 $check->bind_param("s", $serial);
                 $check->execute();
                 $existing = $check->get_result()->fetch_assoc();
@@ -108,6 +182,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                 if ($existing) {
                     $itemId = (int)$existing['id'];
                     $reorderLevel = (int)$existing['reorder_level'];
+
+                    // Fall back to the item's current values when the sheet doesn't carry these columns.
+                    $issued   = $issuedIn   ?? (int)$existing['total_issued'];
+                    $returned = $returnedIn ?? (int)$existing['total_returned'];
+
+                    // Reconcile boh so the computed Stock (boh + received + returned - issued)
+                    // matches the actual physical count from this sheet instead of drifting from it.
+                    $boh = $actual - $received - $returned + $issued;
 
                     if ($actual <= 0) {
                         $status = 'Out of Stock';
@@ -125,6 +207,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                             uom = ?,
                             boh = ?,
                             total_received = ?,
+                            total_issued = ?,
+                            total_returned = ?,
                             actual_stock = ?,
                             pic = ?,
                             remarks = ?,
@@ -134,12 +218,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                     ");
 
                     $stmt->bind_param(
-                        "sssiissssi",
+                        "sssiiiiisssi",
                         $description,
                         $location,
                         $uom,
                         $boh,
                         $received,
+                        $issued,
+                        $returned,
                         $actual,
                         $pic,
                         $remarks,
@@ -148,6 +234,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                     );
                 } else {
                     $reorderLevel = 5;
+
+                    $issued   = $issuedIn   ?? 0;
+                    $returned = $returnedIn ?? 0;
+
+                    // New item: reconcile boh the same way as an update, keeping Total Stocks
+                    // equal to the sheet's actual_stock.
+                    $boh = $actual - $received - $returned + $issued;
 
                     if ($actual <= 0) {
                         $status = 'Out of Stock';
@@ -173,27 +266,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv']) && is_uploade
                             created_at,
                             updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, NOW(), NOW())
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                     ");
 
                     $stmt->bind_param(
-                        "ssssiiisi",
+                        "ssssiiiiisi",
                         $description,
                         $serial,
                         $location,
                         $uom,
                         $boh,
                         $received,
+                        $issued,
+                        $returned,
                         $actual,
                         $status,
                         $reorderLevel
                     );
                 }
 
-                if (!$stmt->execute()) {
-                    $errors[] = "Row $rowNo failed item save: " . $stmt->error;
-                    continue;
-                }
+                $stmt->execute();
 
                 if (!$existing) {
                     $itemId = $conn->insert_id;
@@ -231,15 +323,19 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     $createdBy
                 );
 
-                if (!$log->execute()) {
-                    $errors[] = "Row $rowNo failed transaction log: " . $log->error;
-                    continue;
-                }
+                $log->execute();
 
                 $count++;
+                $importedTotal += $actual;
+
+                } catch (\Throwable $e) {
+                    $srcRows = implode(', ', $d['rows']);
+                    $errors[] = "Row(s) $srcRows failed: " . $e->getMessage();
+                    continue;
+                }
             }
 
-            $msg = "Imported $count rows.";
+            $msg = "Imported $count item(s), totaling $importedTotal units (Actual Stock).";
         }
 
         fclose($fh);
@@ -247,15 +343,15 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 }
 ?>
 
-<h3>Excel/CSV Import</h3>
+<div class='page-head'><div><h3><i class='bi bi-file-earmark-arrow-up'></i> Excel/CSV Import</h3><p class='page-sub'>Bulk-load or update the item master from a CSV file</p></div></div>
 
 <?php if ($msg): ?>
-    <div class="alert alert-success"><?= htmlspecialchars($msg) ?></div>
+    <div class="alert alert-success d-flex align-items-center gap-2"><i class="bi bi-check-circle-fill"></i><span><?= htmlspecialchars($msg) ?></span></div>
 <?php endif; ?>
 
 <?php if (!empty($errors)): ?>
     <div class="alert alert-warning">
-        <strong>Import notes:</strong>
+        <strong><i class="bi bi-exclamation-triangle-fill"></i> Import notes:</strong>
         <ul class="mb-0">
             <?php foreach ($errors as $e): ?>
                 <li><?= htmlspecialchars($e) ?></li>
@@ -267,21 +363,21 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 <div class="card cardx p-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-            <h5 class="mb-1">Upload CSV saved from Excel</h5>
+            <h5 class="mb-1"><i class="bi bi-upload"></i> Upload CSV saved from Excel</h5>
             <p class="mb-0 text-muted">
                 Required columns:
-                <code>item_description, serial_number, location, uom, boh, total_received, actual_stock, pic, remarks</code>
+                <code>item_description, serial_number, location, uom, boh, total_received, total_issued, total_returned, actual_stock, pic, remarks</code>
             </p>
         </div>
 
         <a href="import.php?download_template=1" class="btn btn-success">
-            Download Template
+            <i class="bi bi-download"></i> Download Template
         </a>
     </div>
 
     <form method="post" enctype="multipart/form-data">
         <input type="file" name="csv" accept=".csv" class="form-control mb-3" required>
-        <button class="btn btn-primary">Import</button>
+        <button class="btn btn-primary"><i class="bi bi-file-earmark-arrow-up"></i> Import</button>
     </form>
 </div>
 

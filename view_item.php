@@ -11,7 +11,7 @@ $sql='SELECT * FROM transactions WHERE '.implode(' AND ',$where).' ORDER BY crea
 $st=$conn->prepare($sql); $st->bind_param($types,...$params); $st->execute(); $tx=$st->get_result();
 $qs=http_build_query(array_merge($_GET,['item_id'=>$id]));
 ?>
-<div class='d-flex justify-content-between align-items-center mb-3'><h3>Item Activity View</h3><a href='items.php' class='btn btn-outline-secondary'>Back</a></div>
+<div class='page-head'><div><h3><i class='bi bi-clock-history'></i> Item Activity View</h3><p class='page-sub'>Full receiving, issuance, and return history for this item</p></div><a href='items.php' class='btn btn-outline-secondary'><i class='bi bi-arrow-left'></i> Back</a></div>
 <div class='row g-3 mb-3'>
  <div class='col-md-3'><div class='card cardx p-3'><small>Description</small><b><?=e($item['item_description'])?></b></div></div>
  <div class='col-md-3'><div class='card cardx p-3'><small>Serial / General Code</small><b><?=e($item['serial_number'])?></b></div></div>
@@ -24,7 +24,7 @@ $qs=http_build_query(array_merge($_GET,['item_id'=>$id]));
  <div class='col-md-3'><input type='date' class='form-control' name='from' value='<?=e($_GET['from']??'')?>'></div>
  <div class='col-md-3'><input type='date' class='form-control' name='to' value='<?=e($_GET['to']??'')?>'></div>
  <div class='col-md-3'><select class='form-select' name='action_type'><option value=''>All Activities</option><?php foreach(['Received','Issued','Returned','Adjusted'] as $a):?><option value='<?=$a?>' <?=($_GET['action_type']??'')===$a?'selected':''?>><?=$a?></option><?php endforeach;?></select></div>
- <div class='col-md-3'><button class='btn btn-primary w-100'>Filter Activities</button></div>
+ <div class='col-md-3'><button class='btn btn-primary w-100'><i class='bi bi-funnel'></i> Filter Activities</button></div>
 </form></div>
 <div class='card cardx p-3'><h5>Activities for this item</h5><table class='table table-hover datatable'><thead><tr><th>ID</th><th>Date When</th><th>What / Action</th><th>Qty</th><th>PIC</th><th>Location</th><th>Week</th><th>Remarks</th></tr></thead><tbody>
 <?php while($r=$tx->fetch_assoc()):?><tr><td><?=$r['id']?></td><td><?=e($r['created_at'])?></td><td><?=e($r['action_type'])?></td><td><?=$r['quantity']?></td><td><?=e($r['pic'])?></td><td><?=e($r['location'])?></td><td><?=e($r['week_no'])?></td><td><?=e($r['remarks'])?></td></tr><?php endwhile;?>

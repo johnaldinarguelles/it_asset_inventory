@@ -57,9 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 ?>
-<h3>Issuance Process</h3>
-<?php if ($msg): ?><div class='alert alert-success'><?= $msg ?></div><?php endif; ?>
-<?php if ($err): ?><div class='alert alert-danger'><?= $err ?></div><?php endif; ?>
+<div class='page-head'><div><h3><i class='bi bi-box-arrow-up'></i> Issuance Process</h3><p class='page-sub'>Deduct stock as items are issued to staff</p></div></div>
+<?php if ($msg): ?><div class='alert alert-success d-flex align-items-center gap-2'><i class='bi bi-check-circle-fill'></i><span><?= $msg ?></span></div><?php endif; ?>
+<?php if ($err): ?><div class='alert alert-danger d-flex align-items-center gap-2'><i class='bi bi-exclamation-triangle-fill'></i><span><?= $err ?></span></div><?php endif; ?>
 
 <div class='card cardx p-4'>
   <div class='alert alert-info mb-3'>Issuance supports multiple entries. Unlike Receiving, new rows do not copy previous information. Scan/type the serial or general item code, then quantity. Total stock is deducted dynamically after saving.</div>
@@ -91,14 +91,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <option value="Ms. Cecille">
               </datalist>
             </td>
-            <td><button type='button' class='btn btn-outline-danger btn-sm remove-row' disabled>Remove</button></td>
+            <td><button type='button' class='btn btn-outline-danger btn-sm remove-row' disabled aria-label='Remove row'><i class='bi bi-trash'></i></button></td>
           </tr>
         </tbody>
       </table>
     </div>
     <div class='d-flex gap-2 justify-content-between flex-wrap'>
-      <button type='button' class='btn btn-primary' id='addIssueRow'>+ Add Entry</button>
-      <button class='btn btn-success'>Save All Issuance</button>
+      <button type='button' class='btn btn-primary' id='addIssueRow'><i class='bi bi-plus-lg'></i> Add Entry</button>
+      <button class='btn btn-success'><i class='bi bi-save'></i> Save All Issuance</button>
     </div>
   </form>
 </div>

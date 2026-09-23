@@ -59,9 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 ?>
-<h3>Return Process</h3>
-<?php if ($msg): ?><div class='alert alert-success'><?= $msg ?></div><?php endif; ?>
-<?php if ($err): ?><div class='alert alert-danger'><?= $err ?></div><?php endif; ?>
+<div class='page-head'><div><h3><i class='bi bi-arrow-counterclockwise'></i> Return Process</h3><p class='page-sub'>Add returned stock back into inventory</p></div></div>
+<?php if ($msg): ?><div class='alert alert-success d-flex align-items-center gap-2'><i class='bi bi-check-circle-fill'></i><span><?= $msg ?></span></div><?php endif; ?>
+<?php if ($err): ?><div class='alert alert-danger d-flex align-items-center gap-2'><i class='bi bi-exclamation-triangle-fill'></i><span><?= $err ?></span></div><?php endif; ?>
 
 <div class='card cardx p-4'>
   <div class='alert alert-info mb-3'>Return supports multiple entries. Every saved return is recorded in the transaction log with date, time, item code, quantity, PIC, and action for report accuracy.</div>
@@ -92,14 +92,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <option value="Sir. Max">
               </datalist>
             </td>
-            <td><button type='button' class='btn btn-outline-danger btn-sm remove-row' disabled>Remove</button></td>
+            <td><button type='button' class='btn btn-outline-danger btn-sm remove-row' disabled aria-label='Remove row'><i class='bi bi-trash'></i></button></td>
           </tr>
         </tbody>
       </table>
     </div>
     <div class='d-flex gap-2 justify-content-between flex-wrap'>
-      <button type='button' class='btn btn-primary' id='addReturnRow'>+ Add Entry</button>
-      <button class='btn btn-warning'>Save All Returns</button>
+      <button type='button' class='btn btn-primary' id='addReturnRow'><i class='bi bi-plus-lg'></i> Add Entry</button>
+      <button class='btn btn-warning'><i class='bi bi-save'></i> Save All Returns</button>
     </div>
   </form>
 </div>
